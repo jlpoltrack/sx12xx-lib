@@ -453,3 +453,135 @@ void Sx127xDriverBase::AfcDo(void)
 }
 
 
+// FSK methods
+
+void Sx127xDriverBase::SetModulationParamsFSK(uint32_t br_bps, uint8_t PulseShape, uint8_t RxBw, uint32_t Fdev_hz)
+{
+uint8_t buf[2];
+
+    // BitRate = FXOSC / (BitRate(15:0) + BitRateFrac / 16)
+    uint32_t br_x16 = ((uint32_t)SX127X_FREQ_XTAL_HZ * 16 + br_bps / 2) / br_bps;
+    WriteRegister(SX1276_FSK_REG_BitRateFrac, (uint8_t)(br_x16 & 0x0F));
+    buf[0] = (uint8_t)((br_x16 >> 12) & 0xFF);
+    buf[1] = (uint8_t)((br_x16 >> 4) & 0xFF);
+    WriteRegister(SX1276_FSK_REG_BitrateMsb, buf, 2); // BitrateMsb, BitrateLsb are consecutive
+
+    // Fdev = Fstep * Fdev(13:0), Fstep = FXOSC / 2^19
+    uint32_t fdev = (uint32_t)(((uint64_t)Fdev_hz * (1 << 19) + SX127X_FREQ_XTAL_HZ / 2) / SX127X_FREQ_XTAL_HZ);
+    buf[0] = (uint8_t)((fdev >> 8) & 0x3F);
+    buf[1] = (uint8_t)(fdev & 0xFF);
+    WriteRegister(SX1276_FSK_REG_FdevMsb, buf, 2); // FdevMsb, FdevLsb are consecutive
+
+    // 6-5 ModulationShaping, 3-0 PaRamp
+    ReadWriteRegister(SX1276_FSK_REG_PaRamp, 0x60, PulseShape);
+
+    // 7-5 DccFreq, 4-3 RxBwMant, 2-0 RxBwExp, keep DccFreq at default
+    ReadWriteRegister(SX1276_FSK_REG_RxBw, 0x1F, RxBw);
+}
+
+
+void Sx127xDriverBase::SetAfcParamsFSK(uint8_t AfcBw)
+{
+    // 7-5 DccFreqAfc, 4-3 RxBwMantAfc, 2-0 RxBwExpAfc, keep DccFreqAfc at default
+    ReadWriteRegister(SX1276_FSK_REG_AfcBw, 0x1F, AfcBw);
+
+    // 4 AgcStart, 1 AfcClear, 0 AfcAutoClearOn, clear AFC at start of each receive
+    WriteRegister(SX1276_FSK_REG_AfcFei, 0x01);
+}
+
+
+void Sx127xDriverBase::SetPacketParamsFSK(uint16_t PreambleLength, uint8_t PreambleDetectorLength, uint8_t SyncWordLength, uint8_t PacketType, uint8_t PayloadLength, uint8_t Crc, uint8_t Whitening)
+{
+    // lengths are in bits for compatibility with SX126x, but SX127x uses bytes
+    uint16_t preamble_bytes = (PreambleLength + 7) / 8;
+    WriteRegister(SX1276_FSK_REG_PreambleMsb, (uint8_t)(preamble_bytes >> 8));
+    WriteRegister(SX1276_FSK_REG_PreambleLsb, (uint8_t)(preamble_bytes & 0xFF));
+
+    // 7 PreambleDetectorOn, 6-5 PreambleDetectorSize, 4-0 PreambleDetectorTol, 0x0A is recommended tolerance
+    WriteRegister(SX1276_FSK_REG_PreambleDetect, (PreambleDetectorLength) ? PreambleDetectorLength | 0x0A : 0);
+
+    // 7-6 AutoRestartRxMode off, 5 PreamblePolarity 0x55, 4 SyncOn, 3 FifoFillCondition on sync, 2-0 SyncSize (size + 1 bytes)
+    uint8_t sync_bytes = SyncWordLength / 8;
+    uint8_t sync_config = (1 << 5);
+    if (sync_bytes > 0) sync_config |= (1 << 4) | ((sync_bytes - 1) & 0x07);
+    WriteRegister(SX1276_FSK_REG_SyncConfig, sync_config);
+
+    // 7 PacketFormat, 6-5 DcFree, 4 CrcOn, 3 CrcAutoClearOff, 2-1 AddressFiltering off, 0 CrcWhiteningType CCITT
+    WriteRegister(SX1276_FSK_REG_PacketConfig1, PacketType | Whitening | Crc);
+
+    // 6 DataMode packet, 2-0 PayloadLength(10:8)
+    WriteRegister(SX1276_FSK_REG_PacketConfig2, (1 << 6));
+    WriteRegister(SX1276_FSK_REG_PayloadLength, PayloadLength);
+}
+
+
+void Sx127xDriverBase::SetFifoThresholdFSK(uint8_t FifoThreshold)
+{
+    // 7 TxStartCondition FifoEmpty goes low, i.e. tx starts as soon as FIFO is not empty, 5-0 FifoThreshold
+    WriteRegister(SX1276_FSK_REG_FifoThresh, 0x80 | (FifoThreshold & 0x3F));
+}
+
+
+void Sx127xDriverBase::SetSyncWordFSK(uint16_t SyncWord)
+{
+uint8_t buf[2];
+
+    // SX127x does not allow sync word bytes to be 0x00
+    buf[0] = (uint8_t)((SyncWord >> 8) & 0xFF);
+    buf[1] = (uint8_t)(SyncWord & 0xFF);
+
+    WriteRegister(SX1276_FSK_REG_SyncValue1, buf, 2);
+}
+
+
+void Sx127xDriverBase::SetRxConfigFSK(uint8_t RxConfig, uint8_t RssiSmoothing)
+{
+    WriteRegister(SX1276_FSK_REG_RxConfig, RxConfig);
+
+    // 7-3 RssiOffset, 2-0 RssiSmoothing
+    ReadWriteRegister(SX1276_FSK_REG_RssiConfig, 0x07, RssiSmoothing);
+}
+
+
+void Sx127xDriverBase::SetDioMappingFSK(uint8_t Dio0Mask, uint8_t Dio1Mask)
+{
+    // 7-6 Dio0Mapping, 5-4 Dio1Mapping, 3-2 Dio2Mapping, 1-0 Dio3Mapping
+    ReadWriteRegister(SX1276_REG_DioMapping1, 0xF0, Dio0Mask | Dio1Mask);
+
+    // 7-6 Dio4Mapping, 5-4 Dio5Mapping, 0 MapPreambleDetect
+    ReadWriteRegister(SX1276_REG_DioMapping2, 0x01, 0);
+}
+
+
+uint8_t Sx127xDriverBase::GetIrqStatusFSK(void)
+{
+    // flags cannot be cleared by writing, PayloadReady clears when FIFO is empty, PacketSent when exiting Tx
+    return ReadRegister(SX1276_FSK_REG_IrqFlags2);
+}
+
+
+void Sx127xDriverBase::ClearFifoFSK(void)
+{
+    WriteRegister(SX1276_FSK_REG_IrqFlags2, SX1276_FSK_IRQ2_FIFO_OVERRUN);
+}
+
+
+void Sx127xDriverBase::WriteFifoFSK(uint8_t* data, uint8_t len)
+{
+    WriteRegister(SX1276_REG_Fifo, data, len);
+}
+
+
+void Sx127xDriverBase::ReadFifoFSK(uint8_t* data, uint8_t len)
+{
+    ReadRegister(SX1276_REG_Fifo, data, len);
+}
+
+
+void Sx127xDriverBase::GetRssiFSK(int16_t* Rssi)
+{
+    // RSSI = -RssiValue / 2 [dBm], there is no packet rssi in FSK mode
+    *Rssi = -(int16_t)ReadRegister(SX1276_FSK_REG_RssiValue) / 2;
+}
+
+
