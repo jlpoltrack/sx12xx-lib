@@ -523,7 +523,7 @@ void Sx127xDriverBase::SetPacketParamsFSK(uint16_t PreambleLength, uint8_t Pream
 void Sx127xDriverBase::SetFifoThresholdFSK(uint8_t FifoThreshold)
 {
     // 7 TxStartCondition FifoEmpty goes low, i.e. tx starts as soon as FIFO is not empty, 5-0 FifoThreshold, DS p.101
-    // when offloading on FifoLevel also watch PayloadReady and read FifoThreshold - 1 bytes, errata 3.1 p.6
+    // when offloading on FifoLevel don't empty the FIFO before PayloadReady, else PayloadReady is only a 31.25 ns pulse, errata 3.1 p.6
     WriteRegister(SX1276_FSK_REG_FifoThresh, 0x80 | (FifoThreshold & 0x3F));
 }
 
