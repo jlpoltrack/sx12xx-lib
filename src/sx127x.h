@@ -633,7 +633,7 @@ typedef enum {
 //-------------------------------------------------------
 // Enum Definitions FSK Page Registers
 //-------------------------------------------------------
-// only the registers and settings needed for FSK packet mode
+// only the registers and settings needed for FSK packet mode, see DS Table 42 p.93-105
 
 typedef enum {
     SX1276_FSK_REG_BitrateMsb         = 0x02, // 7-0 BitRate(15:8)
@@ -644,13 +644,13 @@ typedef enum {
     SX1276_FSK_REG_RxConfig           = 0x0D, // 7 RestartRxOnCollision, 6 RestartRxWithoutPllLock, 5 RestartRxWithPllLock, 4 AfcAutoOn, 3 AgcAutoOn, 2-0 RxTrigger
     SX1276_FSK_REG_RssiConfig         = 0x0E, // 7-3 RssiOffset, 2-0 RssiSmoothing
     SX1276_FSK_REG_RssiValue          = 0x11, // 7-0 RssiValue, RSSI = -RssiValue/2 dBm
-    SX1276_FSK_REG_RxBw               = 0x12, // 7-5 DccFreq, 4-3 RxBwMant, 2-0 RxBwExp
-    SX1276_FSK_REG_AfcBw              = 0x13, // 7-5 DccFreqAfc, 4-3 RxBwMantAfc, 2-0 RxBwExpAfc
+    SX1276_FSK_REG_RxBw               = 0x12, // 7 unused, 6-5 reserved, 4-3 RxBwMant, 2-0 RxBwExp
+    SX1276_FSK_REG_AfcBw              = 0x13, // 7-5 reserved, 4-3 RxBwMantAfc, 2-0 RxBwExpAfc
     SX1276_FSK_REG_AfcFei             = 0x1A, // 4 AgcStart, 1 AfcClear, 0 AfcAutoClearOn
     SX1276_FSK_REG_PreambleDetect     = 0x1F, // 7 PreambleDetectorOn, 6-5 PreambleDetectorSize, 4-0 PreambleDetectorTol
     SX1276_FSK_REG_PreambleMsb        = 0x25, // 7-0 PreambleSize(15:8)
     SX1276_FSK_REG_PreambleLsb        = 0x26, // 7-0 PreambleSize(7:0)
-    SX1276_FSK_REG_SyncConfig         = 0x27, // 7-6 AutoRestartRxMode, 5 PreamblePolarity, 4 SyncOn, 3 FifoFillCondition, 2-0 SyncSize
+    SX1276_FSK_REG_SyncConfig         = 0x27, // 7-6 AutoRestartRxMode, 5 PreamblePolarity, 4 SyncOn, 3 reserved, 2-0 SyncSize
     SX1276_FSK_REG_SyncValue1         = 0x28, // 7-0 SyncValue(63:56), 0x28 - 0x2F
     SX1276_FSK_REG_PacketConfig1      = 0x30, // 7 PacketFormat, 6-5 DcFree, 4 CrcOn, 3 CrcAutoClearOff, 2-1 AddressFiltering, 0 CrcWhiteningType
     SX1276_FSK_REG_PacketConfig2      = 0x31, // 6 DataMode, 5 IoHomeOn, 4 IoHomePowerFrame, 3 BeaconOn, 2-0 PayloadLength(10:8)
@@ -672,7 +672,7 @@ typedef enum {
 } SX1276_FSK_PULSESHAPE_ENUM;
 
 
-// SX1276_FSK_REG_RxConfig = 0x0D
+// SX1276_FSK_REG_RxConfig = 0x0D, DS Table 24 p.60
 typedef enum {
     SX1276_FSK_RX_CONFIG_AFC_AUTO_ON              = (1 << 4),
     SX1276_FSK_RX_CONFIG_AGC_AUTO_ON              = (1 << 3),
@@ -692,8 +692,8 @@ typedef enum {
 
 
 // SX1276_FSK_REG_RxBw = 0x12, SX1276_FSK_REG_AfcBw = 0x13
-// RxBw = FXOSC / (RxBwMant * 2^(RxBwExp + 2)), RxBwMant = 16, 20, 24
-// ATTENTION: these are single side bandwidths, SX126x/LR11xx use double side
+// RxBw = FXOSC / (RxBwMant * 2^(RxBwExp + 2)), RxBwMant = 16, 20, 24, DS Table 40 p.88
+// ATTENTION: these are single side bandwidths, SX126x/LR11xx use double side, BitRate < 2 x RxBw
 typedef enum {
     SX1276_FSK_BW_62500               = (0 << 3) | 3,
     SX1276_FSK_BW_83300               = (2 << 3) | 2,
@@ -706,7 +706,7 @@ typedef enum {
 
 
 // SX1276_FSK_REG_PreambleDetect = 0x1F
-// 7 PreambleDetectorOn, 6-5 PreambleDetectorSize
+// 7 PreambleDetectorOn, 6-5 PreambleDetectorSize, DS Table 20 p.53
 typedef enum {
     SX1276_FSK_PREAMBLE_DETECTOR_OFF            = 0x00,
     SX1276_FSK_PREAMBLE_DETECTOR_LENGTH_8BITS   = 0x80 | (0 << 5),
@@ -723,7 +723,7 @@ typedef enum {
 
 typedef enum {
     SX1276_FSK_WHITENING_OFF          = 0x00, // 6-5 DcFree
-    SX1276_FSK_WHITENING_ENABLE       = (2 << 5),
+    SX1276_FSK_WHITENING_ENABLE       = (2 << 5), // CCITT only, IBM whitening is broken, errata 3.2
 } SX1276_FSK_WHITENING_ENUM;
 
 typedef enum {
@@ -745,7 +745,7 @@ typedef enum {
 } SX1276_FSK_IRQ2_ENUM;
 
 
-// SX1276_REG_DioMapping1 = 0x40, in FSK packet mode
+// SX1276_REG_DioMapping1 = 0x40, in FSK packet mode, DS Table 30 p.69
 typedef enum {
     SX1276_FSK_DIO0_MAPPING_PAYLOAD_READY_PACKET_SENT = 0x00, // Rx: PayloadReady, Tx: PacketSent
 } SX1276_FSK_DIO0_MAPPING_ENUM;
